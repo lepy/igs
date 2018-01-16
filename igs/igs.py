@@ -26,7 +26,7 @@ class Iges():
         self.de = None
 
         if fh:
-            fh = StringIO(s)
+            # fh = StringIO(s)
             colspecs = [(0, 72), (72, 73), (73, 80)]
             self.df_raw = pd.read_fwf(fh, colspecs=colspecs, header=None, index_col=None,
                                       columns=["data", "section_code", "sequence_number"])
@@ -56,7 +56,7 @@ class Iges():
                    "form_number",
                    "entry_label",
                    "entry_subscript_number",
-                   "data",
+                   "sequence_number",
                    ]
         for i in range(len(df) // 2):
             row0 = df.iloc[i * 2]
@@ -70,7 +70,7 @@ class Iges():
             s7 = transfromation_matrix = row0["data"][48:56]
             s8 = label_display_assoc = row0["data"][56:64]
             s9 = status_number = row0["data"][64:72]
-            # s10 = sequence_number = row0["data"][72:80]
+            s10 = sequence_number = row0.sequence_number #row0["data"][72:80]
             s11 = entity_type_number_ = row1["data"][:8]
             s12 = line_weight_number = row1["data"][8:16]
             s13 = color_number = row1["data"][16:24]
@@ -80,12 +80,11 @@ class Iges():
             s17 = row1["data"][48:56]
             s18 = entry_label = row1["data"][56:64]
             s19 = entry_subscript_number = row1["data"][64:72]
-            data = None
             # s20 = row1["data"][72:80]
             # iges_entity_type_number_ = row1["data"][:8]
             # print(iges_entity_type_number, iges_entity_type_number_)
-            if entity_type_number != entity_type_number_:
-                raise Exception("invalid data entries")
+            # if entity_type_number != entity_type_number_:
+            #     raise Exception("invalid data entries")
             # print(iges_entity_type_number, parameter_data, parameter_line_count)
             entry_list.append([entity_type_number,
                                parameter_data,
@@ -102,10 +101,12 @@ class Iges():
                                form_number,
                                entry_label,
                                entry_subscript_number,
-                               data,
+                               sequence_number,
                                ])
         de = pd.DataFrame(entry_list, columns=columns)
-        # print(d)
+        de.sequence_number = de.sequence_number.astype(int)
+        de.index = de.sequence_number
+        del entry_list
 
         del df
         df = self.df_raw[self.df_raw["section_code"] == "P"]
@@ -123,7 +124,11 @@ class Iges():
         de_pointer.name = "de_pointer"
         df = df.join(de_pointer)
 
-        # for i in range(len(df) // 2):
+        for dep, df in df.groupby("de_pointer"):
+            param_str = "".join(df.param_str.str.strip().values)
+            print(dep, "".join(df.param_str.str.strip().values))
+            print(de.loc[int(dep)])
+            de.loc[int(dep), "param_str"] = param_str
         #     row0 = df.iloc[i*2]
         #
         #
@@ -135,6 +140,7 @@ class Iges():
 
 
 if __name__ == '__main__':
+
     s = """                                                                        S0000001
 ,,31HOpen CASCADE IGES processor 6.8,13HFilename.iges,                  G0000001
 16HOpen CASCADE 6.8,31HOpen CASCADE IGES processor 6.8,32,308,15,308,15,G0000002
