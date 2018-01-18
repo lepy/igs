@@ -23,7 +23,8 @@ class Iges():
     def __init__(self, fh):
 
         self.df_raw = None
-        self.de = None
+        self._entries = None
+        self._global_section = None
 
         if fh:
             # fh = StringIO(s)
@@ -31,13 +32,70 @@ class Iges():
             self.df_raw = pd.read_fwf(fh, colspecs=colspecs, header=None, index_col=None,
                                       columns=["data", "section_code", "sequence_number"])
             self.df_raw.columns = ["data", "section_code", "sequence_number"]
-            print(self.df_raw.head())
+            # print(self.df_raw.head())
             self.de = self.read_data_entries()
-            print(self.de.head())
-            print(self.de.tail())
+            # print(self.de.head())
+            # print(self.de.tail())
+
+    @property
+    def entries(self):
+        return self._entries
+
+    @property
+    def global_section(self):
+        return self._global_section
+
+    def parse_global_section(self):
+        self._global_section = pd.DataFrame(
+            [
+            ["parameter_delimiter", ",",  1, str, "Parameter delimiter character."],
+            ["record_delimiter", ";",  2, str, "Record delimiter character."],
+            ["product_identification_sender", None,  3, str, "Product identification from sending system"],
+            ["file_name", None,  4, str, "File name"],
+            ["native_system_id", None,  5, str, "Native System ID"],
+            ["preprocessor_version", None,  6, str, "Preprocessor version"],
+            ["int_binary_bits", None,  7, int, "Number of binary bits for integer representation"],
+            ["single_max_power", None,  8, int, "Maximum power of ten representable in a single-precision floating point number on the sending system"],
+            ["single_significant_digits", None,  9, int, "Number of significant digits in a single-precision floating point number on the sending system"],
+            ["double_max_power", None, 10, int, "Maximum power of ten representable in a double-precision floating point number on the sending system"],
+            ["double_significant_digits", None, 11, int, "Number of significant digits in a double-precision floating point number on the sending system"],
+            ["product_identification_receiver", None, 12, str, "Product identification for the receiving system"],
+            ["model_space_scale", None, 13, float, "Model space scale"],
+            ["units_flag", None, 14, int, "Units flag"],
+            ["units_name", None, 15, str, "Units Name"],
+            ["maximum_number_of_line_weight_gradations", None, 16, int, "Maximum number of line weight gradations. Refer to the Directory Entry Parameter 12."],
+            ["width_of_maximum_line_weight_in_units", None, 17, float, "Width of maximum line weight in units. Refer to the Directory Entry Parameter 12 (see Section 2.2.4.4.12) for use of this parameter."],
+            ["datetime_exchange", None, 18, str, "Date and time of exchange file generation 15HYYYYMMDD.HHNNSS or 13HYYMMDD.HHNNSS where: YYYY or YY is 4 or 2 digit year HH is hour (00-23), MM is month (01-12) NN is minute (00-59), DD is day (01-31) SS is second (00-59)"],
+            ["resolution", None, 19, float, "Minimum user-intended resolution or granularity of the model in units specified by Parameter 14."],
+            ["max_coord", None, 20, float, "Approximate maximum coordinate value occurring in the model in units specified by Parameter 14."],
+            ["author", None, 21, str, "Name of author"],
+            ["organization", None, 22, str, "Author’s organization"],
+            ["specification_flag", None, 23, int, "Flag value corresponding to the version of the Specification to which this file complies."],
+            ["drafting_standard_flag", None, 24, int, "Flag value corresponding to the drafting standard to which this file complies, if any."],
+            ["datetime_mod", None, 25, str, "Date and time the model was created or last modified, in same format as field 18."],
+            ["application_protocol", None, 26, str, "Descriptor indicating application protocol, application subset, Mil-specification, or user-defined protocol or subset, if any."],
+            ]
+            , columns=["name", "value", "index", "dtype", "description"])
+        self._global_section.index = self._global_section.name
+
+        df = self.df_raw[self.df_raw["section_code"] == "G"]
+        param_str = df['data']#.str[:65]
+        param_str = "".join(param_str.str.strip().values)
+        # print("!!", param_str)
+        record_delimiter = self._global_section.loc["record_delimiter"].value
+        parameter_delimiter = self._global_section.loc["parameter_delimiter"].value
+        records = param_str.split(record_delimiter)
+        entries = [x.strip() or None for x in records[0].split(parameter_delimiter)]
+        # print(len(entries))
+        # print(entries)
+        s = pd.Series(entries, index=self._global_section.name.values[:len(entries)])
+        # print(s)
+        self._global_section["value"].update(s)
 
     def read_data_entries(self):
         """parse iges structure"""
+        self.parse_global_section()
+
         df = self.df_raw[self.df_raw["section_code"] == "D"]
         # print(df)
         entry_list = []
@@ -81,7 +139,6 @@ class Iges():
             s18 = entry_label = row1["data"][56:64]
             s19 = entry_subscript_number = row1["data"][64:72]
             # s20 = row1["data"][72:80]
-            # iges_entity_type_number_ = row1["data"][:8]
             # print(iges_entity_type_number, iges_entity_type_number_)
             # if entity_type_number != entity_type_number_:
             #     raise Exception("invalid data entries")
@@ -111,11 +168,9 @@ class Iges():
         del df
         df = self.df_raw[self.df_raw["section_code"] == "P"]
         df.index = df.sequence_number
-        print("!", df)
-        print("!", df.data.values)
 
         # add param string
-        param_str = df['data'].str[:64]
+        param_str = df['data'].str[:65]
         param_str.name = "param_str"
         df = df.join(param_str)
 
@@ -126,16 +181,9 @@ class Iges():
 
         for dep, df in df.groupby("de_pointer"):
             param_str = "".join(df.param_str.str.strip().values)
-            print(dep, "".join(df.param_str.str.strip().values))
-            print(de.loc[int(dep)])
             de.loc[int(dep), "param_str"] = param_str
-        #     row0 = df.iloc[i*2]
-        #
-        #
-        # param_string = data[:64]
-        # directory_pointer = int(data[64:72].strip())
-        print("df", df)
-        print(df.columns)
+
+        self._entries = de
         return de
 
 
@@ -199,6 +247,8 @@ S      1G      4D     32P     16                                        T0000001
     fh = StringIO(s)
 
     iges = Iges(fh)
+    print(iges.global_section)
+    print(iges.entries)
     # colspecs = [(0, 72), (72, 73), (73, 80)]
     #
     # df = pd.read_fwf(fh, colspecs=colspecs, header=None, index_col=0)
