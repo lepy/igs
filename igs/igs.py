@@ -25,6 +25,9 @@ class Iges():
         self.df_raw = None
         self._entries = None
         self._global_section = None
+        self.psep = "," # parameter_delimiter
+        self.rsep = ";" # record delimiter
+        self._type_dfs = dict()
 
         if fh:
             # fh = StringIO(s)
@@ -38,12 +41,20 @@ class Iges():
 
             self.parse_entries() # DE PD types data
 
+    def get_type_df(self, type_entity_number):
+        return self._type_dfs.get(type_entity_number)
+
+    def set_type_df(self, type_entity_number, df):
+        self._type_dfs[type_entity_number] = df
+
     def info(self):
         print(self.entries.head())
         print(self.entries.tail())
 
     def parse_entries(self):
         self.parse_type_110()
+        self.parse_type_144()
+        self.parse_type_402()
 
     @property
     def entries(self):
@@ -212,8 +223,34 @@ class Iges():
 
     def parse_type_110(self):
         """lines"""
-        df = self.entries[self.entries.entity_type_number==110][["entity_type_number", "param_str"]].head()
-        print(df.param_str.values)
+        df = self.entries[self.entries.entity_type_number==110]
+        s = df.param_str.str.rstrip(self.rsep)
+        dfe110 = s.str.split(self.psep, 0, expand=True).rename(columns={0:'entity_number',
+                                                                    1:'x1', 2:'y1', 3:'z1',
+                                                                    4:'x2', 5:'y2', 6:'z2',}).astype(float)
+
+        self.set_type_df(110, dfe110[["x1", "y1", "z1", "x2", "y2", "z2"]])
+
+    def parse_type_144(self):
+        """4.34 Trimmed (Parametric) Surface Entity (Type 144)"""
+        df = self.entries[self.entries.entity_type_number==144]
+        s = df.param_str.str.rstrip(self.rsep)
+        # print(df)
+        dfe = s.str.split(self.psep, 5, expand=True).rename(columns={0:'entity_number',
+                                                                     1:'ptr', 2:'n1', 3:'n2', 4:'pto', 5:'pti'})
+        dfe = pd.concat([pd.DataFrame(columns=['entity_number','ptr', 'n1', 'n2', 'pto', 'pti']),
+                        dfe])
+        # print(dfe)
+        self.set_type_df(144, dfe)
+
+    def parse_type_402(self):
+        """4.81  Associativity Instance Entity (Type 402)"""
+        df = self.entries[self.entries.entity_type_number==402]#[["entity_type_number", "param_str"]].head()
+        # print(df.iloc[0])
+        s = df.param_str.str.rstrip(self.rsep)
+        s = s.str.split(self.psep)#.astype(int)
+        de = pd.DataFrame({"x":s})
+        # print(de)
 
 if __name__ == '__main__':
 
@@ -275,6 +312,8 @@ S      1G      4D     32P     16                                        T0000001
     fh = StringIO(s)
 
     iges = Iges(fh)
-    print(iges.global_section)
-    print(iges.entries)
+    # df110 = iges.get_type_df(110)
+    # print(df110)
+    # print(iges.global_section)
+    # print(iges.entries)
 
