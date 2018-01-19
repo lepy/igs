@@ -32,10 +32,18 @@ class Iges():
             self.df_raw = pd.read_fwf(fh, colspecs=colspecs, header=None, index_col=None,
                                       columns=["data", "section_code", "sequence_number"])
             self.df_raw.columns = ["data", "section_code", "sequence_number"]
-            # print(self.df_raw.head())
-            self.de = self.read_data_entries()
-            # print(self.de.head())
-            # print(self.de.tail())
+            self.parse_start_section() # S
+            self.parse_global_section() # G
+            self.read_data_entries() # DE PD raw data
+
+            self.parse_entries() # DE PD types data
+
+    def info(self):
+        print(self.entries.head())
+        print(self.entries.tail())
+
+    def parse_entries(self):
+        self.parse_type_110()
 
     @property
     def entries(self):
@@ -44,6 +52,20 @@ class Iges():
     @property
     def global_section(self):
         return self._global_section
+
+    @property
+    def start_section(self):
+        return self.start_section
+
+    @property
+    def termination_section(self):
+        return self.termination_section
+
+    def parse_start_section(self):
+        self._start_section = self.df_raw[self.df_raw["section_code"] == "S"]
+
+    def parse_termination_section(self):
+        self._termination_section = self.df_raw[self.df_raw["section_code"] == "T"]
 
     def parse_global_section(self):
         self._global_section = pd.DataFrame(
@@ -183,9 +205,15 @@ class Iges():
             param_str = "".join(df.param_str.str.strip().values)
             de.loc[int(dep), "param_str"] = param_str
 
+        de.entity_type_number = de.entity_type_number.astype(int, inplace=True)
+
         self._entries = de
         return de
 
+    def parse_type_110(self):
+        """lines"""
+        df = self.entries[self.entries.entity_type_number==110][["entity_type_number", "param_str"]].head()
+        print(df.param_str.values)
 
 if __name__ == '__main__':
 
@@ -249,10 +277,4 @@ S      1G      4D     32P     16                                        T0000001
     iges = Iges(fh)
     print(iges.global_section)
     print(iges.entries)
-    # colspecs = [(0, 72), (72, 73), (73, 80)]
-    #
-    # df = pd.read_fwf(fh, colspecs=colspecs, header=None, index_col=0)
-    # # df = pd.read_csv(fh, sep=";")
-    # print(df)
-    # for i, row in df[df[1]=="D"].iterrows():
-    #     print(row)
+
