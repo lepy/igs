@@ -30,16 +30,15 @@ class Iges():
         self._type_dfs = dict()
 
         if fh:
-            # fh = StringIO(s)
-            colspecs = [(0, 72), (72, 73), (73, 80)]
-            self.df_raw = pd.read_fwf(fh, colspecs=colspecs, header=None, index_col=None,
-                                      columns=["data", "section_code", "sequence_number"])
-            self.df_raw.columns = ["data", "section_code", "sequence_number"]
+            # pd.read_fwf won't work because of a hidden lstip(" ")
+            df = pd.read_csv(fh, header=None, index_col=None, usecols=[0], dtype=str, sep="|")
+            self.df_raw = pd.DataFrame.from_dict({"data":df[0].str[:72],
+                                    "section_code":df[0].str[72:73],
+                                    "sequence_number":df[0].str[73:80]})
             self.parse_start_section() # S
             self.parse_global_section() # G
             self.read_data_entries() # DE PD raw data
-
-            self.parse_entries() # DE PD types data
+            self.parse_entries() # DE PD type data
 
     def get_type_df(self, type_entity_number):
         return self._type_dfs.get(type_entity_number)
@@ -114,15 +113,11 @@ class Iges():
         df = self.df_raw[self.df_raw["section_code"] == "G"]
         param_str = df['data']#.str[:65]
         param_str = "".join(param_str.str.strip().values)
-        # print("!!", param_str)
         record_delimiter = self._global_section.loc["record_delimiter"].value
         parameter_delimiter = self._global_section.loc["parameter_delimiter"].value
         records = param_str.split(record_delimiter)
         entries = [x.strip() or None for x in records[0].split(parameter_delimiter)]
-        # print(len(entries))
-        # print(entries)
         s = pd.Series(entries, index=self._global_section.name.values[:len(entries)])
-        # print(s)
         self._global_section["value"].update(s)
 
     def read_data_entries(self):
@@ -130,7 +125,6 @@ class Iges():
         self.parse_global_section()
 
         df = self.df_raw[self.df_raw["section_code"] == "D"]
-        # print(df)
         entry_list = []
         columns = ["entity_type_number",
                    "parameter_data",
@@ -215,42 +209,38 @@ class Iges():
         for dep, df in df.groupby("de_pointer"):
             param_str = "".join(df.param_str.str.strip().values)
             de.loc[int(dep), "param_str"] = param_str
-
         de.entity_type_number = de.entity_type_number.astype(int, inplace=True)
-
         self._entries = de
         return de
 
     def parse_type_110(self):
         """lines"""
         df = self.entries[self.entries.entity_type_number==110]
+        if len(df)==0:
+            return
         s = df.param_str.str.rstrip(self.rsep)
         dfe110 = s.str.split(self.psep, 0, expand=True).rename(columns={0:'entity_number',
                                                                     1:'x1', 2:'y1', 3:'z1',
                                                                     4:'x2', 5:'y2', 6:'z2',}).astype(float)
-
         self.set_type_df(110, dfe110[["x1", "y1", "z1", "x2", "y2", "z2"]])
 
     def parse_type_144(self):
         """4.34 Trimmed (Parametric) Surface Entity (Type 144)"""
         df = self.entries[self.entries.entity_type_number==144]
         s = df.param_str.str.rstrip(self.rsep)
-        # print(df)
         dfe = s.str.split(self.psep, 5, expand=True).rename(columns={0:'entity_number',
                                                                      1:'ptr', 2:'n1', 3:'n2', 4:'pto', 5:'pti'})
         dfe = pd.concat([pd.DataFrame(columns=['entity_number','ptr', 'n1', 'n2', 'pto', 'pti']),
                         dfe])
-        # print(dfe)
         self.set_type_df(144, dfe)
 
     def parse_type_402(self):
         """4.81  Associativity Instance Entity (Type 402)"""
-        df = self.entries[self.entries.entity_type_number==402]#[["entity_type_number", "param_str"]].head()
-        # print(df.iloc[0])
+
+        #fixme
+        df = self.entries[self.entries.entity_type_number==402]
         s = df.param_str.str.rstrip(self.rsep)
         s = s.str.split(self.psep)#.astype(int)
-        de = pd.DataFrame({"x":s})
-        # print(de)
 
 if __name__ == '__main__':
 
