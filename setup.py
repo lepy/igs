@@ -12,7 +12,9 @@ with open('HISTORY.rst') as history_file:
     history = history_file.read()
 
 requirements = [
-    'Click>=6.0',
+    'numpy>=1.11.1'
+    'pandas>=0.19.2'
+    # 'Click>=6.0',
     # TODO: put package requirements here
 ]
 
@@ -28,7 +30,7 @@ test_requirements = [
 
 setup(
     name='igs',
-    version='0.1.0',
+    version='0.1.1',
     description="If i had an iges I would .. in the morning.",
     long_description=readme + '\n\n' + history,
     author="lepy",
