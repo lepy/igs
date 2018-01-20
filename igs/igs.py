@@ -30,7 +30,7 @@ class Iges():
         self._type_dfs = dict()
 
         if fh:
-            # pd.read_fwf won't work because of a hidden lstip(" ")
+            # pd.read_fwf won't work because it removes leading whitespaces
             df = pd.read_csv(fh, header=None, index_col=None, usecols=[0], dtype=str, sep="|")
             self.df_raw = pd.DataFrame.from_dict({"data":df[0].str[:72],
                                     "section_code":df[0].str[72:73],
