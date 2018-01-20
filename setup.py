@@ -38,9 +38,9 @@ setup(
     url='https://github.com/lepy/igs',
     packages=find_packages(include=['igs']),
     entry_points={
-        'console_scripts': [
-            'igs=igs.cli:main'
-        ]
+        # 'console_scripts': [
+        #     'igs=igs.cli:main'
+        # ]
     },
     include_package_data=True,
     install_requires=requirements,
