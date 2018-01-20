@@ -31,7 +31,7 @@ test_requirements = [
 setup(
     name='igs',
     version='0.1.1',
-    description="If i had an iges I would .. in the morning.",
+    description="If I had an iges I would .. in the morning.",
     long_description=readme + '\n\n' + history,
     author="lepy",
     author_email='lepy@mailbox.org',
